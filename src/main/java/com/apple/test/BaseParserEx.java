@@ -22,13 +22,38 @@ public class BaseParserEx {
 	public static String currentAddress;
 	public static boolean tableStarted = false;
 	public static boolean tableEnded = false;
+	public static boolean supplierDetailComplete = false;
 	public static List<AppleSupplier> appleSupplier;
+	public static List<String> countries;
+	
 	
 	public static void main(String[] args) throws IOException {
 		File file = new File("Apple-Supplier-List.pdf");
 		FileInputStream fis = new FileInputStream(file);
-		PDFParserTextStripper.extractText(fis);
 		appleSupplier = new ArrayList<AppleSupplier>();
+		
+		// COUNTRY LIST - LAZY APPROACH
+		countries = new ArrayList<>();
+		countries.add("USA");
+		countries.add("Korea");
+		countries.add("China");
+		countries.add("Taiwan");
+		countries.add("Japan");
+		countries.add("Philippines");
+		countries.add("Austria");
+		countries.add("Singapore");
+		countries.add("Malaysia");
+		countries.add("Thailand");
+		countries.add("Belgium");
+		countries.add("Vietnam");
+		countries.add("Germany");
+		countries.add("United Kingdom");
+		countries.add("Netherlands");
+		countries.add("Brazil");
+		countries.add("India");	//PAGE 7
+		
+		PDFParserTextStripper.extractText(fis);
+		
 	}
 }
 
@@ -63,11 +88,11 @@ class PDFParserTextStripper extends PDFTextStripper {
 		if(BaseParserEx.tableStarted && !BaseParserEx.tableEnded) {		// ENSURE THE TABLE HAS BEEN FOUND
 			for (TextPosition text : textPositions) {
 				// COLUMN 1
-				if((int)text.getXDirAdj() >= 54 && (int)text.getXDirAdj() < 248) {
+				if((int)text.getXDirAdj() >= 54 && (int)text.getXDirAdj() < 247) {
 					appendToColumnOneString(text.getUnicode());
 				}
 				// COLUMN 2
-				if((int)text.getXDirAdj() >= 248) {
+				if((int)text.getXDirAdj() >= 247) {
 					appendToColumnTwoString(text.getUnicode());
 				}
 			}
@@ -81,9 +106,43 @@ class PDFParserTextStripper extends PDFTextStripper {
 			BaseParserEx.tableStarted = true;
 		}
 	}
-	
+	// CONDITIONS:
+	// IS THE SUPPLIER NAME COMPLETE?
+	// IS THE ADDRESS COMPLETE? COMPLETE IF WE CAN FIND THE COUNTRY IN THE ADDRESS
 	public static void addSupplierToListIfReady(String string, List<TextPosition> textPositions) {
 		
+		// THE CASE WHERE WE'VE DETAILS FOR THE SUPPLIER NAME, BUT ADDRESS LINE HAS NO VALUE
+		if(BaseParserEx.currentAddress.isEmpty() && !BaseParserEx.currentSupplier.isEmpty()) {
+			AppleSupplier supplier = BaseParserEx.appleSupplier.get(BaseParserEx.appleSupplier.size()-1);
+			supplier.setSupplierName(supplier.getSupplierName() + BaseParserEx.currentSupplier);
+		}
+		
+		// CONDITIONS TO UPDATE PREVIOUS SUPPLIER ADDRESS
+		if(BaseParserEx.appleSupplier.size() > 1) {
+			AppleSupplier supplier = BaseParserEx.appleSupplier.get(BaseParserEx.appleSupplier.size()-1);
+			
+			if(!BaseParserEx.countries.contains(supplier.getSupplierAddress()))
+				supplier.setSupplierAddress(supplier.getSupplierAddress() + BaseParserEx.currentAddress);
+			
+			if(!BaseParserEx.currentSupplier.isEmpty()) 
+				supplier.setSupplierName(supplier.getSupplierName() + BaseParserEx.currentSupplier);
+		}
+		
+		// ELSE ADD AS NEW SUPPLIER
+		
+		
+		String possibleCountryNameForSupplier = BaseParserEx.currentAddress.substring(BaseParserEx.currentAddress.lastIndexOf(",")+1).trim();
+		if(BaseParserEx.currentAddress.contains(",") && 
+				BaseParserEx.countries.contains(possibleCountryNameForSupplier) ) {
+			BaseParserEx.appleSupplier.add(new AppleSupplier(BaseParserEx.currentSupplier, BaseParserEx.currentAddress));
+			BaseParserEx.currentAddress = "";
+			BaseParserEx.currentSupplier = "";
+		}
+		
+		// QUESTION -- IF COUNTRY NAME WASN'T FOUND, SHOUDL WE JUST ADD THE RECORD REGARDLESS?
+		
+			
+			
 	}
 	
 	public static void appendToColumnOneString(String str) {
