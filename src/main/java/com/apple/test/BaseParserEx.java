@@ -10,6 +10,8 @@ import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.text.TextPosition;
@@ -18,11 +20,14 @@ import com.apple.AppleSupplier;
 
 public class BaseParserEx {
 	
+	
+	private static final Logger logger = LogManager.getLogger(BaseParserEx.class);
 	public static String currentSupplier;
 	public static String currentAddress;
 	public static boolean tableStarted = false;
 	public static boolean tableEnded = false;
-	public static boolean supplierDetailComplete = false;
+	// NOT ENOUGH INFORMATION TO CONFIRM COMPLETION - ESPECIALLY FOR THE SUPPLIER NAME
+	public static boolean supplierDetailPossiblyComplete = false;
 	public static List<AppleSupplier> appleSupplier;
 	public static List<String> countries;
 	
@@ -110,38 +115,46 @@ class PDFParserTextStripper extends PDFTextStripper {
 	// IS THE SUPPLIER NAME COMPLETE?
 	// IS THE ADDRESS COMPLETE? COMPLETE IF WE CAN FIND THE COUNTRY IN THE ADDRESS
 	public static void addSupplierToListIfReady(String string, List<TextPosition> textPositions) {
-		
-		// THE CASE WHERE WE'VE DETAILS FOR THE SUPPLIER NAME, BUT ADDRESS LINE HAS NO VALUE
-		if(BaseParserEx.currentAddress.isEmpty() && !BaseParserEx.currentSupplier.isEmpty()) {
-			AppleSupplier supplier = BaseParserEx.appleSupplier.get(BaseParserEx.appleSupplier.size()-1);
-			supplier.setSupplierName(supplier.getSupplierName() + BaseParserEx.currentSupplier);
-		}
+		boolean updatedPreviousSupplier = false;
 		
 		// CONDITIONS TO UPDATE PREVIOUS SUPPLIER ADDRESS
-		if(BaseParserEx.appleSupplier.size() > 1) {
+		if(BaseParserEx.appleSupplier.size() > 0) {
 			AppleSupplier supplier = BaseParserEx.appleSupplier.get(BaseParserEx.appleSupplier.size()-1);
 			
-			if(!BaseParserEx.countries.contains(supplier.getSupplierAddress()))
-				supplier.setSupplierAddress(supplier.getSupplierAddress() + BaseParserEx.currentAddress);
-			
-			if(!BaseParserEx.currentSupplier.isEmpty()) 
+			// THE CASE WHERE WE'VE DETAILS FOR THE SUPPLIER NAME, BUT ADDRESS LINE HAS NO VALUE
+			if(BaseParserEx.currentAddress.isEmpty() && !BaseParserEx.currentSupplier.isEmpty()) {
 				supplier.setSupplierName(supplier.getSupplierName() + BaseParserEx.currentSupplier);
+				updatedPreviousSupplier = true;
+			}
+			// PREVIOUSLY ADDED ADDRESS DOESN'T CONTAIN THE COUNTRY, THUS, INCOMPLETE
+			String possibleCountry = supplier.getSupplierAddress().substring(supplier.getSupplierAddress().lastIndexOf(",")).trim();
+			if(!BaseParserEx.supplierDetailPossiblyComplete && !BaseParserEx.countries.contains(possibleCountry)) {
+				supplier.setSupplierAddress(supplier.getSupplierAddress() + BaseParserEx.currentAddress);
+				updatedPreviousSupplier = true;
+			}
+			
+			// 
+			String country = supplier.getSupplierAddress().substring(supplier.getSupplierAddress().lastIndexOf(",")+1).trim();
+			if(!BaseParserEx.currentSupplier.isEmpty() && !BaseParserEx.countries.contains(country)) { 
+				supplier.setSupplierName(supplier.getSupplierName() + BaseParserEx.currentSupplier);
+				updatedPreviousSupplier = true;
+			}
 		}
-		
-		// ELSE ADD AS NEW SUPPLIER
-		
-		
-		String possibleCountryNameForSupplier = BaseParserEx.currentAddress.substring(BaseParserEx.currentAddress.lastIndexOf(",")+1).trim();
-		if(BaseParserEx.currentAddress.contains(",") && 
-				BaseParserEx.countries.contains(possibleCountryNameForSupplier) ) {
-			BaseParserEx.appleSupplier.add(new AppleSupplier(BaseParserEx.currentSupplier, BaseParserEx.currentAddress));
+		if(!updatedPreviousSupplier) // NO UPDATES TO PREVIOUS RECORD; ADD AS NEW SUPPLIER
+		{
+			AppleSupplier supplier = new AppleSupplier(BaseParserEx.currentSupplier, BaseParserEx.currentAddress);
+			BaseParserEx.appleSupplier.add(supplier);
 			BaseParserEx.currentAddress = "";
 			BaseParserEx.currentSupplier = "";
+
+			// UNABLE TO CONFIRM IF DETAIL IS COMPLETE GIVEN THE CURRENT INFORMATION
+			String possibleCountry = supplier.getSupplierAddress().substring(supplier.getSupplierAddress().lastIndexOf(",")+1).trim();
+			if(BaseParserEx.countries.contains(possibleCountry)) {
+				BaseParserEx.supplierDetailPossiblyComplete = true;
+			} else {
+				BaseParserEx.supplierDetailPossiblyComplete = false;
+			}
 		}
-		
-		// QUESTION -- IF COUNTRY NAME WASN'T FOUND, SHOUDL WE JUST ADD THE RECORD REGARDLESS?
-		
-			
 			
 	}
 	
