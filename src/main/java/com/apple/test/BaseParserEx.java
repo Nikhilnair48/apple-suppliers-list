@@ -1,15 +1,17 @@
 package com.apple.test;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
-
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -21,7 +23,7 @@ import com.apple.AppleSupplier;
 public class BaseParserEx {
 	
 	
-	private static final Logger logger = LogManager.getLogger(BaseParserEx.class);
+	public static final Logger logger = LogManager.getLogger(BaseParserEx.class);
 	public static String currentSupplier;
 	public static String currentAddress;
 	public static boolean tableStarted = false;
@@ -38,26 +40,17 @@ public class BaseParserEx {
 		appleSupplier = new ArrayList<AppleSupplier>();
 		
 		// COUNTRY LIST - LAZY APPROACH
-		countries = new ArrayList<>();
-		countries.add("USA");
-		countries.add("Korea");
-		countries.add("China");
-		countries.add("Taiwan");
-		countries.add("Japan");
-		countries.add("Philippines");
-		countries.add("Austria");
-		countries.add("Singapore");
-		countries.add("Malaysia");
-		countries.add("Thailand");
-		countries.add("Belgium");
-		countries.add("Vietnam");
-		countries.add("Germany");
-		countries.add("United Kingdom");
-		countries.add("Netherlands");
-		countries.add("Brazil");
-		countries.add("India");	//PAGE 7
+		populateCountriesList();
 		
 		PDFParserTextStripper.extractText(fis);
+		
+	}
+	
+	public static void populateCountriesList() throws FileNotFoundException {
+		File file = new File("ListOfCountries.txt");
+		BufferedReader reader = new BufferedReader(new FileReader(file));
+		
+		
 		
 	}
 }
@@ -124,21 +117,31 @@ class PDFParserTextStripper extends PDFTextStripper {
 			// THE CASE WHERE WE'VE DETAILS FOR THE SUPPLIER NAME, BUT ADDRESS LINE HAS NO VALUE
 			if(BaseParserEx.currentAddress.isEmpty() && !BaseParserEx.currentSupplier.isEmpty()) {
 				supplier.setSupplierName(supplier.getSupplierName() + BaseParserEx.currentSupplier);
+				BaseParserEx.currentSupplier = "";
 				updatedPreviousSupplier = true;
 			}
-			// PREVIOUSLY ADDED ADDRESS DOESN'T CONTAIN THE COUNTRY, THUS, INCOMPLETE
-			String possibleCountry = supplier.getSupplierAddress().substring(supplier.getSupplierAddress().lastIndexOf(",")).trim();
-			if(!BaseParserEx.supplierDetailPossiblyComplete && !BaseParserEx.countries.contains(possibleCountry)) {
-				supplier.setSupplierAddress(supplier.getSupplierAddress() + BaseParserEx.currentAddress);
+			// 
+			String country = supplier.getSupplierAddress().substring(supplier.getSupplierAddress().lastIndexOf(",")+1).trim();
+			if(country != null && country.length() > 1 &&
+					String.valueOf(country.charAt(country.length()-1)).equals(".")) 
+				country = country.substring(0, country.length()-1);
+			if(!BaseParserEx.currentSupplier.isEmpty() && (!BaseParserEx.countries.contains(country) || BaseParserEx.currentAddress.trim().isEmpty())) { 
+				supplier.setSupplierName(supplier.getSupplierName() + BaseParserEx.currentSupplier);
+				BaseParserEx.currentSupplier = "";
 				updatedPreviousSupplier = true;
 			}
 			
-			// 
-			String country = supplier.getSupplierAddress().substring(supplier.getSupplierAddress().lastIndexOf(",")+1).trim();
-			if(!BaseParserEx.currentSupplier.isEmpty() && !BaseParserEx.countries.contains(country)) { 
-				supplier.setSupplierName(supplier.getSupplierName() + BaseParserEx.currentSupplier);
+			// PREVIOUSLY ADDED ADDRESS DOESN'T CONTAIN THE COUNTRY, THUS, INCOMPLETE
+			String possibleCountry = supplier.getSupplierAddress().substring(supplier.getSupplierAddress().lastIndexOf(",")+1).trim();
+			if(possibleCountry != null && possibleCountry.length() > 1 &&
+					String.valueOf(possibleCountry.charAt(possibleCountry.length()-1)).equals(".")) 
+				possibleCountry = possibleCountry.substring(0, possibleCountry.length()-1);
+			if(!BaseParserEx.supplierDetailPossiblyComplete && !BaseParserEx.countries.contains(possibleCountry)) {
+				supplier.setSupplierAddress(supplier.getSupplierAddress() + BaseParserEx.currentAddress);
+				BaseParserEx.currentAddress = "";
 				updatedPreviousSupplier = true;
 			}
+			
 		}
 		if(!updatedPreviousSupplier) // NO UPDATES TO PREVIOUS RECORD; ADD AS NEW SUPPLIER
 		{
@@ -179,6 +182,7 @@ class PDFParserTextStripper extends PDFTextStripper {
 				BaseParserEx.tableEnded = false;
 				BaseParserEx.tableStarted = false;
 				stripper.stripPage(i);
+				//BaseParserEx.logger.info("\n" + BaseParserEx.appleSupplier);
 			}
 		} catch (IOException e) {
 		} finally {
