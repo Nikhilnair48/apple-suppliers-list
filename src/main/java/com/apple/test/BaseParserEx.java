@@ -38,6 +38,7 @@ public class BaseParserEx {
 		File file = new File("Apple-Supplier-List.pdf");
 		FileInputStream fis = new FileInputStream(file);
 		appleSupplier = new ArrayList<AppleSupplier>();
+		countries = new ArrayList<>();
 		
 		// COUNTRY LIST - LAZY APPROACH
 		populateCountriesList();
@@ -46,11 +47,14 @@ public class BaseParserEx {
 		
 	}
 	
-	public static void populateCountriesList() throws FileNotFoundException {
+	public static void populateCountriesList() throws IOException {
 		File file = new File("ListOfCountries.txt");
 		BufferedReader reader = new BufferedReader(new FileReader(file));
-		
-		
+		String line = "";
+		while((line = reader.readLine()) != null) {
+			countries.add(line);
+		}
+		reader.close();
 		
 	}
 }
@@ -78,7 +82,7 @@ class PDFParserTextStripper extends PDFTextStripper {
 	protected void writeString(String string, List<TextPosition> textPositions) throws IOException {
 		
 		// SET THE APPROPIRATE FLAGS PRIOR TO PARSING THE TABLE
-		if (string.toLowerCase().contains("apple supplier responsibility")) {
+		if (string.toLowerCase().contains("apple supplier responsibility") || string.toLowerCase().trim().equals("for more information")) {
 			BaseParserEx.tableEnded = true;
 			BaseParserEx.tableStarted = false;
 		}
@@ -176,14 +180,17 @@ class PDFParserTextStripper extends PDFTextStripper {
 			pdd = PDDocument.load(inputStream);
 			PDFParserTextStripper stripper = new PDFParserTextStripper(pdd);
 			stripper.setSortByPosition(true);
+			int runningTotalOfRowsRead = 0;
 			for (int i = 0; i < pdd.getNumberOfPages(); i++) {
 				BaseParserEx.currentAddress = "";
 				BaseParserEx.currentSupplier = "";
 				BaseParserEx.tableEnded = false;
 				BaseParserEx.tableStarted = false;
 				stripper.stripPage(i);
-				//BaseParserEx.logger.info("\n" + BaseParserEx.appleSupplier);
+				BaseParserEx.logger.info("Completed reading page number " + (i+1) + ". Read " + (BaseParserEx.appleSupplier.size()-runningTotalOfRowsRead) + " rows on the page.");
+				runningTotalOfRowsRead = BaseParserEx.appleSupplier.size();
 			}
+			//BaseParserEx.logger.info("\n" + BaseParserEx.appleSupplier);
 		} catch (IOException e) {
 		} finally {
 			if (pdd != null) {
